@@ -7,16 +7,20 @@ import json
 import os
 import argparse
 import pickle
+import ConfigParser
 
-API_ID = ""
-API_KEY = ""
+config = ConfigParser.ConfigParser()
+config.read('settings.conf')
 
-managerServerID = ""
+API_ID = config.get('DigitalOceanAPI', 'API_ID')
+API_KEY = config.get('DigitalOceanAPI', 'API_KEY')
 
-imageID = ""
-keyID = ""
-sizeID = ""
-hostname = ""
+managerServerID = config.get('DigitalOceanSettings', 'managerServerID')
+
+imageID = config.get('DigitalOceanDropletSettings', 'image')
+keyID = config.get('DigitalOceanDropletSettings', 'key')
+sizeID = config.get('DigitalOceanDropletSettings', 'size')
+hostname = config.get('DigitalOceanDropletSettings', 'hostname')
 
 url = 'https://api.digitalocean.com/droplets/?client_id='+API_ID+'&api_key='+API_KEY
 
