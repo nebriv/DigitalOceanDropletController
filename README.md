@@ -24,3 +24,10 @@ optional arguments:
 Installation
 =============================
 Clone the repo, modify the settings.conf.dist to contain your DigitalOcean API information and then rename it to settings.conf
+
+Contact
+=============================
+
+@Nebriv https://benvirgilio.com/
+
+@Marleyjaffe http://marleyjaffe.com/
