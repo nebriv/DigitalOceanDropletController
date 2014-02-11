@@ -5,7 +5,7 @@ Uses Digital Ocean's RESTful API to spin up and shutdown droplets.
 
 usage: manager.py [-h] -a {start,stop,status,rebuild} [-q Q] [-n N] [-t T]
                   [--verbose]
-
+                  
 Start and stop Digital Ocean Droplets.
 
 optional arguments:
