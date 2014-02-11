@@ -8,53 +8,24 @@ import argparse
 import pickle
 import ConfigParser
 
-config = ConfigParser.ConfigParser()
-config.read('settings.conf')
+# Creates blank Global Vars
 
-API_ID = config.get('DigitalOceanAPI', 'API_ID')
-API_KEY = config.get('DigitalOceanAPI', 'API_KEY')
-
-managerServerID = config.get('DigitalOceanSettings', 'managerServerID')
-
-imageID = config.get('DigitalOceanDropletSettings', 'image')
-try:
-    keyID = config.get('DigitalOceanDropletSettings', 'key')
-except ValueError:
-    keyID = None
-sizeID = config.get('DigitalOceanDropletSettings', 'size')
-hostname = config.get('DigitalOceanDropletSettings', 'hostname')
-
-url = 'https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY
-
-#List of times for api calls to digital ocean. An avagerage of this is used to for timeouts.
-averagetimeout = [4]
-
+API_ID = ""
+API_KEY = ""
+managerServerID = ""
+imageID = ""
+sizeID = ""
+hostname = ""
+url = ""
 serverList = []
 timeoutList = []
 confirmDestroy = []
-
-parser = argparse.ArgumentParser(description="Start and stop Digital Ocean Droplets.")
-parser.add_argument('-a', choices=['start', 'stop', 'status', 'rebuild'],
-                    help='Specify the action desired: start, stop, status, rebuild', required=True)
-
-#Need to require number of droplets if action = start
-
-
-parser.add_argument('-q', help='Specify the number of droplets (Default is 5)', type=int, default=5)
-parser.add_argument('-n', help='Specify the hostname of the droplets (Default is \'server-\')', type=str,
-                    default=hostname)
-parser.add_argument('-t', help='Specify timeout limit (in seconds) (default is 600 seconds)', type=int, default=600)
-parser.add_argument('--verbose', '-v', help="Add v to have limited verbosity, add another v to give debug messages",
-                    action='count')
-args = vars(parser.parse_args())
-action = args['a']
-totalServers = args['q']
-activetimeout = args['t']
-hostname = args['n']
-hostname.replace(' ', '_').lower()
-hostname = hostname + "-"
-verbose = args['verbose']
-
+curHostname = ""
+verbose = False
+#List of times for api calls to digital ocean. An avagerage of this is used to for timeouts.
+averagetimeout = []
+activetimeout = ""
+keyID = ""
 
 class Droplet:
     def __init__(self, region, image, key, size, hostname):
@@ -305,207 +276,276 @@ def getAverage(list):
     return sum(list) / float(len(list)) + .5
 
 
-if action == "start":
+def ParseCommandLine():
+    parser = argparse.ArgumentParser(description="Start and stop Digital Ocean Droplets.")
+    parser.add_argument('-a', choices=['start', 'stop', 'status', 'rebuild'],
+                        help='Specify the action desired: start, stop, status, rebuild', required=True)
+
+    #Need to require number of droplets if action = start
+
+
+    parser.add_argument('-q', help='Specify the number of droplets (Default is 5)', type=int, default=5)
+    parser.add_argument('-n', help='Specify the hostname of the droplets (Default is identified in the config)', type=str,
+                        default=hostname)
+    parser.add_argument('-t', help='Specify timeout limit (in seconds) (default is 600 seconds)', type=int, default=600)
+    parser.add_argument('--verbose', '-v', help="Add v to have limited verbosity, add another v to give debug messages",
+                        action='count')
+    return parser.parse_args()
+
+
+def main():
+
+    # Creates totalTime var to start timer of full application run
     totalTime = time.time()
-    regions = getRegions()
-    curServer = 1
-    print "Creating " + str(totalServers) + " droplets"
 
-    countingServers = totalServers
+    global API_ID
+    global API_KEY
+    global managerServerID
+    global imageID
+    global sizeID
+    global hostname
+    global url
+    global serverList
+    global timeoutList
+    global confirmDestroy
+    global curHostname
+    global verbose
+    global averagetimeout
+    global activetimeout
+    global keyID
 
-    while curServer < (countingServers + 1):
-        curHostname = hostname + str(curServer)
+    config = ConfigParser.ConfigParser()
+    config.read('settings.conf')
 
-        curServer += 1
-        params = regions, imageID, sizeID, keyID, curHostname
+    API_ID = config.get('DigitalOceanAPI', 'API_ID')
+    API_KEY = config.get('DigitalOceanAPI', 'API_KEY')
 
-        try:
+    managerServerID = config.get('DigitalOceanSettings', 'managerServerID')
+
+    imageID = config.get('DigitalOceanDropletSettings', 'image')
+    try:
+        keyID = config.get('DigitalOceanDropletSettings', 'key')
+    except ValueError:
+        keyID = None
+    sizeID = config.get('DigitalOceanDropletSettings', 'size')
+    hostname = config.get('DigitalOceanDropletSettings', 'hostname')
+
+    url = 'https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY
+
+    #List of times for api calls to digital ocean. An avagerage of this is used to for timeouts.
+    averagetimeout = [4]
+
+    serverList = []
+    timeoutList = []
+    confirmDestroy = []
+
+    theArgs = ParseCommandLine()
+
+    args = vars(theArgs)
+    action = args['a']
+    totalServers = args['q']
+    activetimeout = args['t']
+    hostname = args['n']
+    hostname.replace(' ', '_').lower()
+    hostname = hostname + "-"
+    verbose = args['verbose']
+
+    if action == "start":
+        regions = getRegions()
+        curServer = 1
+        print "Creating " + str(totalServers) + " droplets"
+
+        countingServers = totalServers
+
+        while curServer < (countingServers + 1):
+            curHostname = hostname + str(curServer)
+
+            curServer += 1
+            params = regions, imageID, sizeID, keyID, curHostname
+
+            try:
+                if verbose > 1:
+                    print "Starting create thread for " + curHostname
+                thread.start_new_thread(createDroplet, params)
+            except:
+                if verbose > 1:
+                    print "Thread died or something..."
+            avgTime = getAverage(averagetimeout)
             if verbose > 1:
-                print "Starting create thread for " + curHostname
-            thread.start_new_thread(createDroplet, params)
-        except:
-            if verbose > 1:
-                print "Thread died or something..."
-        avgTime = getAverage(averagetimeout)
+                print "Waiting average creation time: " + str(avgTime)
+            sleep(avgTime)
+
+        activeServers = 0
+
+        activeList = []
+
+        start = time.time()
+        if verbose:
+            print "Waiting for droplets to become active."
+        while activeServers < totalServers:
+            for server in serverList:
+                #print "Checking " + server.getHostname() + " - " +server.status
+                if server.status != "new":
+                    if server not in activeList:
+                        activeServers += 1
+                        activeList.append(server)
+
+                    #if verbose > 1:
+                    #print str(activeServers) + " of " + str(totalServers) + " are active"
+            sleep(2)
+        #os.system('clear')
+        elapsed = (time.time() - start)
+
+        del activeList
+        print "Done creating droplets."
+        if verbose:
+            print "After " + str(elapsed) + " seconds, all droplets are up!"
+
         if verbose > 1:
-            print "Waiting average creation time: " + str(avgTime)
-        sleep(avgTime)
+            for server in serverList:
+                server.display()
 
-    activeServers = 0
+        if verbose:
+            print str(len(timeoutList)) + " servers timed out during creation."
 
-    activeList = []
+        if verbose > 1:
+            print "Saving current list of servers..."
 
-    start = time.time()
-    if verbose:
-        print "Waiting for droplets to become active."
-    while activeServers < totalServers:
-        for server in serverList:
-            #print "Checking " + server.getHostname() + " - " +server.status
-            if server.status != "new":
-                if server not in activeList:
-                    activeServers += 1
-                    activeList.append(server)
+        if os.path.exists('activelist.txt'):
+            with open('activelist.txt', 'rb') as input:
+                newList = pickle.load(input)
+                serverList = serverList + newList
+            with open('activelist.txt', 'wb') as output:
+                pickle.dump(serverList, output)
+        else:
+            with open('activelist.txt', 'wb') as output:
+                pickle.dump(serverList, output)
 
-                #if verbose > 1:
-                #print str(activeServers) + " of " + str(totalServers) + " are active"
-        sleep(2)
-    #os.system('clear')
-    elapsed = (time.time() - start)
+        if len(timeoutList) > 0:
+            if os.path.exists('timeoutlist.txt'):
+                with open('timeoutlist.txt', 'rb') as input:
+                    newList = pickle.load(input)
+                    timeoutList = timeoutList + newList
+                with open('timeoutlist.txt', 'wb') as output:
+                    pickle.dump(timeoutList, output)
+            else:
+                with open('timeoutlist.txt', 'wb') as output:
+                    pickle.dump(timeoutList, output)
 
-    del activeList
-    print "Done creating droplets."
-    if verbose:
-        print "After " + str(elapsed) + " seconds, all droplets are up!"
+    elif action == "stop":
+        if os.path.exists('activelist.txt'):
+            with open('activelist.txt', 'rb') as input:
+                serverList = pickle.load(input)
 
-    if verbose > 1:
-        for server in serverList:
-            server.display()
+        else:
+            if verbose:
+                print "No activelist.txt, maybe no servers are running?"
+            exit()
 
-    if verbose:
-        print str(len(timeoutList)) + " servers timed out during creation."
-
-    if verbose > 1:
-        print "Saving current list of servers..."
-
-    if os.path.exists('activelist.txt'):
-        with open('activelist.txt', 'rb') as input:
-            newList = pickle.load(input)
-            serverList = serverList + newList
-        with open('activelist.txt', 'wb') as output:
-            pickle.dump(serverList, output)
-    else:
-        with open('activelist.txt', 'wb') as output:
-            pickle.dump(serverList, output)
-
-    if len(timeoutList) > 0:
         if os.path.exists('timeoutlist.txt'):
             with open('timeoutlist.txt', 'rb') as input:
-                newList = pickle.load(input)
-                timeoutList = timeoutList + newList
+                timeoutList = pickle.load(input)
+
+        count = 0
+        if len(serverList) > 0:
+            if totalServers >= len(serverList):
+                print "Destroying all droplets in 3 seconds"
+                sleep(3)
+                while len(serverList) > 0:
+                    for server in serverList:
+                        if server.getStatus() == "active":
+                            server.destroy()
+                            serverList.remove(server)
+                        else:
+                            if verbose > 1:
+                                print server.getID() + " status not active"
+            else:
+                print "Destroying " + str(totalServers) + " droplets in 3 seconds"
+                sleep(3)
+                while count <= totalServers - 1:
+                    for server in serverList:
+                        if count >= totalServers:
+                            break
+                        if server.getStatus() == "active":
+                            server.destroy()
+                            serverList.remove(server)
+                            count += 1
+                        else:
+                            if verbose > 1:
+                                print server.getID() + " status not active"
+
+        else:
+            if verbose:
+                print "There are no active servers to kill"
+
+        if verbose:
+            print "Checking for dead servers"
+
+        if len(timeoutList) > 0:
+            if verbose:
+                print "Waiting 120 Seconds, then destroying servers that timed out."
+            sleep(120)
+            while len(timeoutList) > 0:
+                for server in timeoutList:
+                    server.waitTillActive()
+                    server.destroy()
+                    timeoutList.remove(server)
+        else:
+            if verbose > 1:
+                print "No dead servers"
+
+        if len(serverList) > 0:
+            if verbose > 1:
+                print "Saving current list of servers..."
+            with open('activelist.txt', 'wb') as output:
+                pickle.dump(serverList, output)
+        else:
+            if verbose > 1:
+                print "Deleting list of active servers"
+            try:
+                os.remove("activelist.txt")
+            except:
+                pass
+        if len(timeoutList) > 0:
             with open('timeoutlist.txt', 'wb') as output:
                 pickle.dump(timeoutList, output)
         else:
-            with open('timeoutlist.txt', 'wb') as output:
-                pickle.dump(timeoutList, output)
+            if verbose > 1:
+                print "Deleting list of timed out servers"
+            try:
+                os.remove("timeoutlist.txt")
+            except:
+                pass
+        print "Done destroying droplets"
+
+    elif action == "status":
+        digiOceanCount = countDroplets()
+        try:
+            print "There are " + str(digiOceanCount) + " droplets currently running"
+            if verbose:
+                with open('activelist.txt', 'rb') as input:
+                    serverList = pickle.load(input)
+                for server in serverList:
+                    server.display()
+        except IOError:
+            if verbose:
+                print "No servers are currently active"
+        if int(digiOceanCount) != len(serverList):
+            print "Number of servers reported by Digital Ocean's API does not match the current server list. Rebuilding list now"
+            rebuildLists()
+            if verbose:
+                with open('activelist.txt', 'rb') as input:
+                    serverList = pickle.load(input)
+                for server in serverList:
+                    server.display()
+
+    elif action == "rebuild":
+        rebuildLists()
+
+    # If verbose, stop timer and print totalTime var
     if verbose:
         totalTime = (time.time() - totalTime)
         print "Total time to create: " + str(totalTime)
 
-elif action == "stop":
-    totalTime = time.time()
-    if os.path.exists('activelist.txt'):
-        with open('activelist.txt', 'rb') as input:
-            serverList = pickle.load(input)
-
-    else:
-        if verbose:
-            print "No activelist.txt, maybe no servers are running?"
-        exit()
-
-    if os.path.exists('timeoutlist.txt'):
-        with open('timeoutlist.txt', 'rb') as input:
-            timeoutList = pickle.load(input)
-
-    count = 0
-    if len(serverList) > 0:
-        if totalServers >= len(serverList):
-            print "Destroying all droplets in 3 seconds"
-            sleep(3)
-            while len(serverList) > 0:
-                for server in serverList:
-                    if server.getStatus() == "active":
-                        server.destroy()
-                        serverList.remove(server)
-                    else:
-                        if verbose > 1:
-                            print server.getID() + " status not active"
-        else:
-            print "Destroying " + str(totalServers) + " droplets in 3 seconds"
-            sleep(3)
-            while count <= totalServers - 1:
-                for server in serverList:
-                    if count >= totalServers:
-                        break
-                    if server.getStatus() == "active":
-                        server.destroy()
-                        serverList.remove(server)
-                        count += 1
-                    else:
-                        if verbose > 1:
-                            print server.getID() + " status not active"
-
-    else:
-        if verbose:
-            print "There are no active servers to kill"
-
-    if verbose:
-        print "Checking for dead servers"
-
-    if len(timeoutList) > 0:
-        if verbose:
-            print "Waiting 120 Seconds, then destroying servers that timed out."
-        sleep(120)
-        while len(timeoutList) > 0:
-            for server in timeoutList:
-                server.waitTillActive()
-                server.destroy()
-                timeoutList.remove(server)
-    else:
-        if verbose > 1:
-            print "No dead servers"
-
-    if len(serverList) > 0:
-        if verbose > 1:
-            print "Saving current list of servers..."
-        with open('activelist.txt', 'wb') as output:
-            pickle.dump(serverList, output)
-    else:
-        if verbose > 1:
-            print "Deleting list of active servers"
-        try:
-            os.remove("activelist.txt")
-        except:
-            pass
-    if len(timeoutList) > 0:
-        with open('timeoutlist.txt', 'wb') as output:
-            pickle.dump(timeoutList, output)
-    else:
-        if verbose > 1:
-            print "Deleting list of timed out servers"
-        try:
-            os.remove("timeoutlist.txt")
-        except:
-            pass
-    print "Done destroying droplets"
-
-    if verbose:
-        totalTime = (time.time() - totalTime)
-        print "Total time to destroy: " + str(totalTime)
-
-elif action == "status":
-    digiOceanCount = countDroplets()
-    try:
-        print "There are " + str(digiOceanCount) + " droplets currently running"
-        if verbose:
-            with open('activelist.txt', 'rb') as input:
-                serverList = pickle.load(input)
-            for server in serverList:
-                server.display()
-    except IOError:
-        if verbose:
-            print "No servers are currently active"
-    if int(digiOceanCount) != len(serverList):
-        print "Number of servers reported by Digital Ocean's API does not match the current server list. Rebuilding list now"
-        rebuildLists()
-        if verbose:
-            with open('activelist.txt', 'rb') as input:
-                serverList = pickle.load(input)
-            for server in serverList:
-                server.display()
-
-elif action == "rebuild":
-    rebuildLists()
-
-# print "Confirm all are destroyed:"
-# for server in serverList:
-# 	print server.display()
+if __name__ == '__main__':
+    main()
