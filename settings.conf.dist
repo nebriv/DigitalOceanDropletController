@@ -1,0 +1,15 @@
+[DigitalOceanAPI]
+#Add your API ID and Key to the spots below
+API_ID: 
+API_KEY: 
+
+[DigitalOceanSettings]
+#If you are running this script on a server also on DigitalOcean, set this to that server's droplet ID
+managerServerID: 
+
+[DigitalOceanDropletSettings]
+#The script will automatically look up the appropriate IDs for the following information.
+image: MyImage
+key: My-Key
+size: 512MB
+hostname: MyServer
