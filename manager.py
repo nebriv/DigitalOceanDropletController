@@ -332,7 +332,7 @@ if action == "start":
 		with open('activelist.txt', 'wb') as output:
 			pickle.dump(serverList, output)
 
-	if len(timeoutList > 0):
+	if len(timeoutList) > 0:
 		if os.path.exists('timeoutlist.txt'):
 			with open('timeoutlist.txt', 'rb') as input:
 				newList = pickle.load(input)
