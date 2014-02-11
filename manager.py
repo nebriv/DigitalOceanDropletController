@@ -18,7 +18,10 @@ API_KEY = config.get('DigitalOceanAPI', 'API_KEY')
 managerServerID = config.get('DigitalOceanSettings', 'managerServerID')
 
 imageID = config.get('DigitalOceanDropletSettings', 'image')
-keyID = config.get('DigitalOceanDropletSettings', 'key')
+try:
+	keyID = config.get('DigitalOceanDropletSettings', 'key')
+except ValueError:
+	keyID = None
 sizeID = config.get('DigitalOceanDropletSettings', 'size')
 hostname = config.get('DigitalOceanDropletSettings', 'hostname')
 
@@ -38,7 +41,7 @@ parser.add_argument('-a', choices=['start', 'stop', 'status', 'rebuild'], help='
 
 
 parser.add_argument('-q', help='Specify the number of droplets (Default is 5)', type=int, default = 5)
-parser.add_argument('-n', help='Specify the hostname of the droplets (Default is \'server-\')', type=str, default = "server")
+parser.add_argument('-n', help='Specify the hostname of the droplets (Default is \'server-\')', type=str, default = hostname)
 parser.add_argument('-t', help='Specify timeout limit (in seconds) (default is 600 seconds)', type=int, default=600)
 parser.add_argument('--verbose', '-v', help="Add v to have limited verbosity, add another v to give debug messages", action='count')
 args = vars(parser.parse_args())
@@ -56,14 +59,20 @@ class Droplet:
 		self.imageID = str(image)
 		self.sizeID = str(size)
 		self.region = str(region)
-		self.keyID = str(key)
+		if key:
+			self.keyID = str(key)
+		else:
+			self.keyID = None
 		self.DropletID = "N/A"
 		
 	def build(self):
 		if verbose:
 			print "Creating new droplet: "+self.hostname
 		try:
-			r = requests.get("https://api.digitalocean.com/droplets/new?client_id="+API_ID+"&api_key="+API_KEY+"&name="+self.hostname+"&size_id="+self.sizeID+"&image_id="+self.imageID+"&region_id="+self.region+"&ssh_key_ids="+self.keyID, timeout=500)
+			if self.keyID:
+				r = requests.get("https://api.digitalocean.com/droplets/new?client_id="+API_ID+"&api_key="+API_KEY+"&name="+self.hostname+"&size_id="+self.sizeID+"&image_id="+self.imageID+"&region_id="+self.region+"&ssh_key_ids="+self.keyID, timeout=500)
+			else:
+				r = requests.get("https://api.digitalocean.com/droplets/new?client_id="+API_ID+"&api_key="+API_KEY+"&name="+self.hostname+"&size_id="+self.sizeID+"&image_id="+self.imageID+"&region_id="+self.region, timeout=500)
 		except requests.exceptions.Timeout:
 			print "YO THIS SHIT TIMED OUT"
 		
@@ -235,7 +244,10 @@ def createDroplet(regions, image, size, sshkey, name):
 	global DropletList
 	selectedRegion = choice(regions)
 	start = time.time()
-	curDroplet = Droplet(selectedRegion, getImageID(image), getSSHKeys(sshkey), getSizeID(size), curHostname)
+	if sshkey:
+		curDroplet = Droplet(selectedRegion, getImageID(image), getSSHKeys(sshkey), getSizeID(size), curHostname)
+	else:
+		curDroplet = Droplet(selectedRegion, getImageID(image), None, getSizeID(size), curHostname)
 	curDroplet.build()
 	elapsed = (time.time() - start)
 	averagetimeout.append(elapsed)
