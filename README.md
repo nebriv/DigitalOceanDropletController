@@ -12,10 +12,7 @@ optional arguments:
 
   -h, --help            show this help message and exit
 
-  -a {start,stop,status,rebuild}
-
-                        Specify the action desired: start, stop, status,
-                        rebuild
+  -a {start,stop,status,rebuild}    Specify the action desired: start, stop, status, rebuild
 
   -q Q                  Specify the number of droplets (Default is 5)
 
