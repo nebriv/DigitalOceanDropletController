@@ -1,12 +1,15 @@
-import requests
 import thread
 import time
 from time import sleep
 from random import choice
 import os
 import argparse
-import pickle
 import ConfigParser
+
+import requests
+import pickle
+
+
 
 # Creates blank Global Vars
 
@@ -20,43 +23,73 @@ url = ""
 serverList = []
 timeoutList = []
 confirmDestroy = []
-curHostname = ""
 verbose = False
-#List of times for api calls to digital ocean. An avagerage of this is used to for timeouts.
+#List of times for api calls to digital ocean. An average of this is used to for timeouts.
 averagetimeout = []
-activetimeout = ""
+activetimeout = 0
 keyID = ""
+totalServers = 5
+
 
 class Droplet:
     def __init__(self, region, image, key, size, hostname):
+        """
+        This class creates the droplet object.
+        """
 
         self.hostname = str(hostname)
         self.imageID = str(image)
         self.sizeID = str(size)
         self.region = str(region)
+
         if key:
             self.keyID = str(key)
         else:
             self.keyID = None
         self.DropletID = "N/A"
 
-
     def build(self):
+        """
+        Name:           build
+
+        Description:    Sends API call to D.O. to create new droplet
+
+        Actions:        Uses the non standard requests library to send API call to D.O.
+                            Check to see if an SSH Key was passed.
+                        Uses globally set vars; API_ID and API_KEY
+
+                        Checks if droplet was created properly or if an error occurred.
+
+                        Uses API documentation located at: https://cloud.digitalocean.com/api_access
+        """
+
+        # Checks verbosity level to print creation start message
         if verbose:
             print "Creating new droplet: " + self.hostname
+
+        # Attempts to send D.O. API call, uses non-standard "requests" library
         try:
+            # Checks to see if a SSHKey is identified, sets API call result as r
             if self.keyID:
                 r = requests.get(
-                    "https://api.digitalocean.com/droplets/new?client_id=" + API_ID + "&api_key=" + API_KEY + "&name=" + self.hostname + "&size_id=" + self.sizeID + "&image_id=" + self.imageID + "&region_id=" + self.region + "&ssh_key_ids=" + self.keyID,
+                    "https://api.digitalocean.com/droplets/new?client_id=" + API_ID + "&api_key=" + API_KEY + "&name=" +
+                    self.hostname + "&size_id=" + self.sizeID + "&image_id=" + self.imageID + "&region_id=" +
+                    self.region + "&ssh_key_ids=" + self.keyID,
                     timeout=500)
+            # Sets API call result as r
             else:
                 r = requests.get(
-                    "https://api.digitalocean.com/droplets/new?client_id=" + API_ID + "&api_key=" + API_KEY + "&name=" + self.hostname + "&size_id=" + self.sizeID + "&image_id=" + self.imageID + "&region_id=" + self.region,
-                    timeout=500)
+                    "https://api.digitalocean.com/droplets/new?client_id=" + API_ID + "&api_key=" + API_KEY + "&name=" +
+                    self.hostname + "&size_id=" + self.sizeID + "&image_id=" + self.imageID + "&region_id=" +
+                    self.region, timeout=500)
+        # Returns error if API call times out
         except requests.exceptions.Timeout:
-            print "YO THIS SHIT TIMED OUT"
+            print "The API call for: ", self.hostname, " timed out"
 
+        # Sets the result of the above API call as result
         result = r.json()
+
+        # If the API call was not successful
         if result['status'] != "OK":
             if verbose:
                 print "Failed Creating Droplet"
@@ -64,15 +97,35 @@ class Droplet:
                     print result['error_message']
             self.status = "Failed"
         else:
+            # Sets returned droplet ID and sets the status to new
             self.DropletID = str(result['droplet']['id'])
             self.status = "new"
 
-
     def setID(self, newid):
+        """
+        Name:           setID
+
+        Description:    Sets the DropletID to a new value, or initializes that var
+
+        Input:          Requires a new Droplet ID passed as an int
+
+        Actions:        Sets the objects DropletID to a new ID
+        """
+
         self.DropletID = str(newid)
 
-
     def display(self):
+        """
+        Name:           display
+
+        Description:    Prints information regarding the Droplet Object
+
+        Input:          none
+
+        Actions:        Prints objects variables with identifying text before information
+                        Prints; hostname, DropletID, region, IP, status
+        """
+        #Prints information about Droplet Object
         print "Droplet Hostname: " + self.hostname
         print "      Droplet ID: " + self.DropletID
         print "  Droplet Region: " + self.region
@@ -80,65 +133,141 @@ class Droplet:
         print "  Droplet Status: " + self.status
         print "------------------------------"
 
-
     def getIP(self):
+        """
+        Name:           getIP
+
+        Description:    returns the IP for a droplet using the D.O. API
+
+        Input:          none
+
+        Actions:        Uses the non standard requests library to send API call to D.O.
+                        Returns the IP Address unless an error occurs. If an error occurs, it will return the error.
+        """
         r = requests.get(
             "https://api.digitalocean.com/droplets/" + self.DropletID + "?client_id=" + API_ID + "&api_key=" + API_KEY)
         result = r.json()
         if result['status'] == "OK":
             return str(result['droplet']['ip_address'])
         else:
+            # TODO raise error instead of return error
             return result['error_message']
 
-
     def setIP(self, newip):
+        """
+        Name:           setIP
+
+        Description:    Set the objects IP Address to the passed variable
+
+        Input:          Requires new IP Address to be passed
+        """
         self.IP = str(newip)
 
-
     def getID(self):
+        """
+        Name:           getID
+
+        Description:    Returns the objects ID
+
+        Input:          none
+
+        Actions:        Returns the objects droplet ID as a string
+        """
         return str(self.DropletID)
 
-
     def getHostname(self):
+        """
+        Name:           getHostname
+
+        Description:    Returns the objects hostname
+
+        Input:          none
+
+        Actions:        Returns the objects droplet ID as a string
+        """
         return str(self.hostname)
 
-
     def isActive(self):
+        """
+        Name:           isActive
+
+        Description:    Uses the D.O. API to check the status of a droplet
+
+        Input:          none
+
+        Actions:        Uses the non standard requests library to send API call to D.O.
+                        Uses the objects DropletID var to check the status.
+                        Returns True if active else returns False
+        """
+        # Uses the requests library to call D.O. API
+        # TODO use the getStatus function instead of redefining API call
         r = requests.get(
             "https://api.digitalocean.com/droplets/" + self.DropletID + "?client_id=" + API_ID + "&api_key=" + API_KEY)
+        # Store results of API call in var result
         result = r.json()
+        # Checks if returned status is active
         if result['droplet']['status'] == "active":
             return True
         else:
             return False
 
-
     def getStatus(self):
+        """
+        Name:           getStatus
+
+        Description:    Checks the status of a droplet using D.O. API
+
+        Input:          none
+
+        Actions:        Uses the non-standard "requests" library to send API call to D.O.
+                        Returns the status of the droplet as a strings
+        """
         r = requests.get(
             "https://api.digitalocean.com/droplets/" + self.DropletID + "?client_id=" + API_ID + "&api_key=" + API_KEY)
         result = r.json()
         return str(result['droplet']['status'])
 
-
     def setStatus(self, newstatus):
+        """
+        Name:           setStatus
+
+        Description:    Sets the status of the object
+
+        Input:          A status
+
+        Actions:        Sets the passed status as the objects status
+        """
         self.status = str(newstatus)
 
-
     def waitTillActive(self):
+        """
+        Name:           waitTillActive
+
+        Description:    Uses the function isActive to check droplets status waits before it checks again
+
+        Input:          none
+
+        Actions:        Checks the status of the object, if not failed it will start a self timer
+                        While the previously registered status is still new, and the time is less than the timeout
+                            Uses the isActive function to check status
+                            If not active will be reasonably impatient
+
+                        returns status, even if timeout error
+        """
+        # Checks if the status is not equal to failed
         if self.status != "Failed":
-            r = requests.get(
-                "https://api.digitalocean.com/droplets/" + self.DropletID + "?client_id=" + API_ID + "&api_key=" + API_KEY)
-            result = r.json()
-            #print "Waiting for "+serverID+" to become active"
+            # Creates a var of how long the function has been waiting for droplet to become active
             self.startUpTime = 0
+            # Loops through as the status is set to new
             while self.status == "new":
+                # Checks if the time taken is less than the the set amount of time
                 if self.startUpTime <= activetimeout:
-                    r = requests.get(
-                        "https://api.digitalocean.com/droplets/" + self.DropletID + "?client_id=" + API_ID + "&api_key=" + API_KEY)
-                    result = r.json()
-                    if result['droplet']['status'] == "active":
+                    # Uses the isActive function to determine if the droplet is active
+                    if self.isActive():
                         self.status = "active"
                     else:
+                        # Depending on startUpTime, this will sleep for a set amount of time.
+                        # This makes the program reasonably impatient
                         if self.startUpTime < 1:
                             sleep(60)
                             self.startUpTime += 60
@@ -151,18 +280,31 @@ class Droplet:
                         else:
                             sleep(5)
                             self.startUpTime += 5
+                # If the droplet does not become active within the specified activeTimeout value
+                # TODO should this raise an error rather than set the status?
                 else:
                     self.status = "Error: Did not become active within time limit"
         return self.status
 
-
-    #if verbose > 1:
-    #	print serverID+" is active"
-
     def destroy(self):
+        """
+        Name:           destroy
+
+        Description:    Uses the D.O. API to destroy droplets based on ID
+
+        Input:          none
+
+        Actions:        Uses the D.O. API to destroy and scrub server data
+                        Waits for ok status, prints completed message, sets status to destroyed
+                        If error occurs, will set error to status
+                        Returns status even if error
+        """
+        # Uses the D.O. API to destroy and scrub droplets
         r = requests.get(
-            "https://api.digitalocean.com/droplets/" + self.DropletID + "/destroy/?client_id=" + API_ID + "&api_key=" + API_KEY + "&scrub_data=1")
+            "https://api.digitalocean.com/droplets/" + self.DropletID + "/destroy/?client_id=" + API_ID + "&api_key=" +
+            API_KEY + "&scrub_data=1")
         result = r.json()
+        # Checks to make sure the call was "OK"
         if result['status'] == "OK":
             if verbose:
                 print "Destroyed droplet " + str(self.DropletID)
@@ -173,46 +315,111 @@ class Droplet:
 
 
 def countDroplets():
+    """
+    Name:           countDroplets
+
+    Description:    Counts how many droplets are on the account that are not the manager droplet and are active
+
+    Input:          none
+
+    Actions:        Uses the D.O. API to get a list of all droplets on the account
+                    Loops through returned droplets and counts how many are not the manager and have an active status
+                    Returns a string of the count
+    """
+    # Uses the D.O API to get all droplets on the account
     r = requests.get('https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY)
     result = r.json()
+    # Starts with 0 before counting droplets
     count = 0
+    # Loops through all returned droplets
     for droplet in result['droplets']:
+        # Checks to makes sure its not the manager droplet
         if droplet['name'] != "Manager":
+            # Makes sure the droplet is active
             if droplet['status'] == 'active':
-                count = count + 1
+                count += 1
     return str(count)
 
 
 def rebuildLists():
+    """
+    Name:           rebuildLists
+
+    Description:    Drops the activelist.txt and the global serverList var, rebuilds based on data from D.O. API call
+
+    Input:          none
+
+    Actions:        Sets the global serverList var to be modified
+                    Uses D.O. API to get all droplets on the account
+                    Drops the existing serverList
+                    Loops through reported droplets from D.O.
+                        Checks to ensure the droplet is not the manager
+                        Creates new droplet object with region, ID, SSH Key, droplet size, and host name
+                            Uses the getSSHKeys function to get the SSH Key
+                        Once object has been created, use objects functions to set respective object vars;
+                            setStatus, setIP, and setID
+                        Adds the object to the list
+                    Outputs Server list to activelist.txt
+                    Returns serverList
+    """
+    # Allows global serverList to be modified
     global serverList
+
+    # Uses D.O. API to get all droplets on the account
     r = requests.get('https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY)
     result = r.json()
+    # Sets global var serverList to blank list
     serverList = []
+    # Loops through all returned droplets
     for droplet in result['droplets']:
+        # Checks to makes sure its not the manager droplet
         if droplet['name'] != "Manager":
             if verbose > 1:
                 print "Adding droplet " + str(droplet['id'])
+            # Creates new droplet object, passing it the info from the D.O. API call
             curDroplet = Droplet(droplet['region_id'], droplet['image_id'], getSSHKeys(keyID), droplet['size_id'],
                                  droplet['name'])
+            # Sets the status of the newly created droplet object
             curDroplet.setStatus(droplet['status'])
+            # Sets the IP Address of the newly created droplet object
             curDroplet.setIP(droplet['ip_address'])
+            # Sets the ID of the newly created droplet object
             curDroplet.setID(droplet['id'])
+            # Appends the newly created object to the global serverList
             serverList.append(curDroplet)
+    # Open the activelist.txt file in write binary mode
+    # TODO should this function check if the droplet is active since its getting added to the activelist.txt?
     with open('activelist.txt', 'wb') as output:
+        # Dumps the Global serverList to the output file
         pickle.dump(serverList, output)
     if verbose > 1:
         print "Done rebuilding server list"
+    # Returns the global serverList
     return serverList
 
 
 def getSizeID(wantedSize):
-    sizeid = "33"
+    """
+    Name:           getSizeID
+
+    Description:    Sets the size ID to the requested size, returns 512MB option if fails
+
+    Input:          Wanted size in string ex. 512MB
+
+    Actions:        Sets default to 512MB
+                    Uses D.O. API to check available sizes
+                    Compares sizes with requested size
+                    If found returns the respective sizeId
+    """
+    # Sets default sizeid to 33 (512MB)
+    sizeId = "33"
     r = requests.get("https://api.digitalocean.com/sizes/?client_id=" + API_ID + "&api_key=" + API_KEY)
     result = r.json()
     for size in result['sizes']:
+        # Checks if wantedSize is in the returned sizes
         if size['name'] == wantedSize:
-            sizeid = size['id']
-    return str(sizeid)
+            sizeId = size['id']
+    return str(sizeId)
 
 
 def getImageID(imageName):
@@ -236,6 +443,7 @@ def getRegions():
 
 
 def getSSHKeys(keyName):
+    # TODO Should this return false if the SSHKey is not set
     r = requests.get("https://api.digitalocean.com/ssh_keys/?client_id=" + API_ID + "&api_key=" + API_KEY)
     result = r.json()
     for key in result['ssh_keys']:
@@ -246,13 +454,13 @@ def getSSHKeys(keyName):
 
 def createDroplet(regions, image, size, sshkey, name):
     global totalServers
-    global DropletList
+    global serverList
     selectedRegion = choice(regions)
     start = time.time()
     if sshkey:
-        curDroplet = Droplet(selectedRegion, getImageID(image), getSSHKeys(sshkey), getSizeID(size), curHostname)
+        curDroplet = Droplet(selectedRegion, getImageID(image), getSSHKeys(sshkey), getSizeID(size), name)
     else:
-        curDroplet = Droplet(selectedRegion, getImageID(image), None, getSizeID(size), curHostname)
+        curDroplet = Droplet(selectedRegion, getImageID(image), None, getSizeID(size), name)
     curDroplet.build()
     elapsed = (time.time() - start)
     averagetimeout.append(elapsed)
@@ -270,10 +478,10 @@ def createDroplet(regions, image, size, sshkey, name):
             timeoutList.append(curDroplet)
 
 
-def getAverage(list):
-    if len(list) > 10:
-        list.pop(0)
-    return sum(list) / float(len(list)) + .5
+def getAverage(timeList):
+    if len(timeList) > 10:
+        timeList.pop(0)
+    return sum(timeList) / float(len(timeList)) + .5
 
 
 def ParseCommandLine():
@@ -283,9 +491,9 @@ def ParseCommandLine():
 
     #Need to require number of droplets if action = start
 
-
     parser.add_argument('-q', help='Specify the number of droplets (Default is 5)', type=int, default=5)
-    parser.add_argument('-n', help='Specify the hostname of the droplets (Default is identified in the config)', type=str,
+    parser.add_argument('-n', help='Specify the hostname of the droplets (Default is identified in the config)',
+                        type=str,
                         default=hostname)
     parser.add_argument('-t', help='Specify timeout limit (in seconds) (default is 600 seconds)', type=int, default=600)
     parser.add_argument('--verbose', '-v', help="Add v to have limited verbosity, add another v to give debug messages",
@@ -294,7 +502,6 @@ def ParseCommandLine():
 
 
 def main():
-
     # Creates totalTime var to start timer of full application run
     totalTime = time.time()
 
@@ -308,12 +515,15 @@ def main():
     global serverList
     global timeoutList
     global confirmDestroy
-    global curHostname
     global verbose
     global averagetimeout
     global activetimeout
     global keyID
+    global totalServers
 
+    theArgs = ParseCommandLine()
+
+    # TODO Move Config Parser to separate function
     config = ConfigParser.ConfigParser()
     config.read('settings.conf')
 
@@ -332,14 +542,12 @@ def main():
 
     url = 'https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY
 
-    #List of times for api calls to digital ocean. An avagerage of this is used to for timeouts.
+    #List of times for api calls to digital ocean. An average of this is used to for timeouts.
     averagetimeout = [4]
 
     serverList = []
     timeoutList = []
     confirmDestroy = []
-
-    theArgs = ParseCommandLine()
 
     args = vars(theArgs)
     action = args['a']
@@ -350,6 +558,7 @@ def main():
     hostname = hostname + "-"
     verbose = args['verbose']
 
+    # TODO move start action to individual function
     if action == "start":
         regions = getRegions()
         curServer = 1
@@ -390,8 +599,8 @@ def main():
                         activeServers += 1
                         activeList.append(server)
 
-                    #if verbose > 1:
-                    #print str(activeServers) + " of " + str(totalServers) + " are active"
+                        #if verbose > 1:
+                        #print str(activeServers) + " of " + str(totalServers) + " are active"
             sleep(2)
         #os.system('clear')
         elapsed = (time.time() - start)
@@ -412,30 +621,31 @@ def main():
             print "Saving current list of servers..."
 
         if os.path.exists('activelist.txt'):
-            with open('activelist.txt', 'rb') as input:
-                newList = pickle.load(input)
+            with open('activelist.txt', 'rb') as inputFile:
+                newList = pickle.load(inputFile)
                 serverList = serverList + newList
-            with open('activelist.txt', 'wb') as output:
-                pickle.dump(serverList, output)
+            with open('activelist.txt', 'wb') as outputFile:
+                pickle.dump(serverList, outputFile)
         else:
-            with open('activelist.txt', 'wb') as output:
-                pickle.dump(serverList, output)
+            with open('activelist.txt', 'wb') as outputFile:
+                pickle.dump(serverList, outputFile)
 
         if len(timeoutList) > 0:
             if os.path.exists('timeoutlist.txt'):
-                with open('timeoutlist.txt', 'rb') as input:
-                    newList = pickle.load(input)
+                with open('timeoutlist.txt', 'rb') as inputFile:
+                    newList = pickle.load(inputFile)
                     timeoutList = timeoutList + newList
-                with open('timeoutlist.txt', 'wb') as output:
-                    pickle.dump(timeoutList, output)
+                with open('timeoutlist.txt', 'wb') as outputFile:
+                    pickle.dump(timeoutList, outputFile)
             else:
-                with open('timeoutlist.txt', 'wb') as output:
-                    pickle.dump(timeoutList, output)
+                with open('timeoutlist.txt', 'wb') as outputFile:
+                    pickle.dump(timeoutList, outputFile)
 
+    # TODO move stop action to individual function
     elif action == "stop":
         if os.path.exists('activelist.txt'):
-            with open('activelist.txt', 'rb') as input:
-                serverList = pickle.load(input)
+            with open('activelist.txt', 'rb') as inputFile:
+                serverList = pickle.load(inputFile)
 
         else:
             if verbose:
@@ -443,8 +653,8 @@ def main():
             exit()
 
         if os.path.exists('timeoutlist.txt'):
-            with open('timeoutlist.txt', 'rb') as input:
-                timeoutList = pickle.load(input)
+            with open('timeoutlist.txt', 'rb') as inputFile:
+                timeoutList = pickle.load(inputFile)
 
         count = 0
         if len(serverList) > 0:
@@ -518,13 +728,14 @@ def main():
                 pass
         print "Done destroying droplets"
 
+    # TODO move status to individual function
     elif action == "status":
         digiOceanCount = countDroplets()
         try:
             print "There are " + str(digiOceanCount) + " droplets currently running"
-            if verbose:
-                with open('activelist.txt', 'rb') as input:
+            with open('activelist.txt', 'rb') as input:
                     serverList = pickle.load(input)
+            if verbose:
                 for server in serverList:
                     server.display()
         except IOError:
@@ -539,6 +750,7 @@ def main():
                 for server in serverList:
                     server.display()
 
+    # TODO Keep consistent, move to separate function (rebuildLists will work)
     elif action == "rebuild":
         rebuildLists()
 
