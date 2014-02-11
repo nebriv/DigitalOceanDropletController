@@ -335,7 +335,7 @@ def countDroplets():
     for droplet in result['droplets']:
         # Checks to makes sure its not the manager droplet
         if droplet['name'] != "Manager":
-            # Makes sure the droplet is active
+            # Makes sure the droplet is active before adding it to the count
             if droplet['status'] == 'active':
                 count += 1
     return str(count)
@@ -368,11 +368,11 @@ def rebuildLists():
     # Uses D.O. API to get all droplets on the account
     r = requests.get('https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY)
     result = r.json()
-    # Sets global var serverList to blank list
+    # Sets global var serverList to clear the list
     serverList = []
     # Loops through all returned droplets
     for droplet in result['droplets']:
-        # Checks to makes sure its not the manager droplet
+        # Checks to makes sure the current droplet is not the manager droplet
         if droplet['name'] != "Manager":
             if verbose > 1:
                 print "Adding droplet " + str(droplet['id'])
@@ -385,12 +385,12 @@ def rebuildLists():
             curDroplet.setIP(droplet['ip_address'])
             # Sets the ID of the newly created droplet object
             curDroplet.setID(droplet['id'])
-            # Appends the newly created object to the global serverList
-            serverList.append(curDroplet)
+            # Appends the newly created object to the global serverList if it is an active droplet
+			if curDroplet.status == "active":
+				serverList.append(curDroplet)
     # Open the activelist.txt file in write binary mode
-    # TODO should this function check if the droplet is active since its getting added to the activelist.txt?
     with open('activelist.txt', 'wb') as output:
-        # Dumps the Global serverList to the output file
+        # Compresses the list and writes it to the output file
         pickle.dump(serverList, output)
     if verbose > 1:
         print "Done rebuilding server list"
@@ -444,6 +444,7 @@ def getImageID(imageName):
         if image['name'] == imageName:
             imageID = image['id']
     # TODO should return false or raise error if not found or both
+	# TODO should be able to use a standard D.O. image as a default, if not specified in config.
     return str(imageID)
 
 
@@ -480,7 +481,7 @@ def getSSHKeys(keyName):
     Actions:        Goes through D.O. API and gets available SSH Keys
                     Returns SSH Key ID in String
     """
-    # TODO Should this return false if the SSHKey is not set or raise an error
+    # TODO Should this return None if the SSHKey is not set or false/raise an error if not found
     # Uses D.O. to get available SSH Keys
     r = requests.get("https://api.digitalocean.com/ssh_keys/?client_id=" + API_ID + "&api_key=" + API_KEY)
     result = r.json()
@@ -551,7 +552,7 @@ def createDroplet(regions, image, size, sshkey, name):
         # Removes the object from the list if its status is not active
         serverList.remove(curDroplet)
         totalServers -= 1
-        # TODO Add Verbosity error reporting if status is error
+        # TODO Add Verbosity error reporting if status is error - Not sure if this should be done here, or when building the object above.
         if curDroplet.status != "Failed":
             timeoutList.append(curDroplet)
 
@@ -662,7 +663,7 @@ def main():
     # TODO use the defined URL instead of calling it defining it each time (where possible)
     url = 'https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY
 
-    theArgs = ParseCommandLine()
+    
 
     #List of times for api calls to digital ocean. An average of this is used to for timeouts.
     averagetimeout = [4]
@@ -671,6 +672,8 @@ def main():
     timeoutList = []
     confirmDestroy = []
 
+	theArgs = ParseCommandLine()
+	
     args = vars(theArgs)
     action = args['a']
     totalServers = args['q']
@@ -876,9 +879,10 @@ def main():
     elif action == "rebuild":
         rebuildLists()
 
-    # If verbose, stop timer and print totalTime var
+	#Timer should stop regardless of verbosity.
+	totalTime = (time.time() - totalTime)
+    # If verbose, print totalTime var
     if verbose:
-        totalTime = (time.time() - totalTime)
         print "Total time to create: " + str(totalTime)
 
 if __name__ == '__main__':
