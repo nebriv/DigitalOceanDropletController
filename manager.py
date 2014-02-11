@@ -423,29 +423,68 @@ def getSizeID(wantedSize):
 
 
 def getImageID(imageName):
+    """
+    Name:           getImageID
+
+    Description:    Gets available images from D.O. and returns the string of the requested image
+
+    Input:          The image Name
+
+    Actions:        Uses the D.O. API to get available images
+                    Attempts to find requested image name in available images
+                    returns image ID
+    """
+    # Uses D.O. API to get available images
     r = requests.get(
         "https://api.digitalocean.com/images/?client_id=" + API_ID + "&api_key=" + API_KEY + "&filter=my_images")
     result = r.json()
     #print result
+    # Searches through to see if imageName is in returned values
     for image in result['images']:
         if image['name'] == imageName:
             imageID = image['id']
+    # TODO should return false or raise error if not found or both
     return str(imageID)
 
 
 def getRegions():
+    """
+    Name:           getRegions
+
+    Description:    Gets available regions from D.O.
+
+    Input:          none
+
+    Actions:        Uses the D.O API to get available regions (locations)
+                    Adds values to list
+                    Returns list
+    """
     regions = []
+    # Uses D.O. API to get available regions
     r = requests.get("https://api.digitalocean.com/regions/?client_id=" + API_ID + "&api_key=" + API_KEY)
     result = r.json()
+    # Loops through and adds regions to list
     for region in result['regions']:
         regions.append(str(region['id']))
     return regions
 
 
 def getSSHKeys(keyName):
-    # TODO Should this return false if the SSHKey is not set
+    """
+    Name:           getSSHKeys
+
+    Description:    Gets SSHKeys from D.O. and returns the request Key ID
+
+    Input:          SSH Key Name
+
+    Actions:        Goes through D.O. API and gets available SSH Keys
+                    Returns SSH Key ID in String
+    """
+    # TODO Should this return false if the SSHKey is not set or raise an error
+    # Uses D.O. to get available SSH Keys
     r = requests.get("https://api.digitalocean.com/ssh_keys/?client_id=" + API_ID + "&api_key=" + API_KEY)
     result = r.json()
+    # Searches through to see if keyName is in the returned values
     for key in result['ssh_keys']:
         if key['name'] == keyName:
             keyid = key['id']
@@ -453,55 +492,136 @@ def getSSHKeys(keyName):
 
 
 def createDroplet(regions, image, size, sshkey, name):
+    """
+    Name:           createDroplet
+
+    Description:    creates D.O. droplet based on passed parameters, adds servers to either serverList or timeoutList
+
+    Input:          The following parameters need to be passed; Regions - A list of all available regions
+                                                                Base Image - Name of Base Image
+                                                                Size - Size of desired droplet ex. 512MB
+                                                                SSH Key - Name of SSH Key
+                                                                Name - desired hostname
+
+    Actions:        Chooses a random region from the passed region list
+                    Checks if SSH Key is initialized and creates the droplet object
+                    Uses the following functions to pass appropriate values; getImageID, getSSHKeys, getSizeID
+                    Once droplet object has been created, call objects build function.
+                    Checks the time it took to create object and adds value to averagetimeout list
+                    Adds the newly created droplet object to serverList
+                    Uses objects waitTillActive function to check if the object became active
+                    If object became active:
+                        Uses the objects getIP function to set the objects IP Address
+                    Else:
+                        Removes its self from list, decrements totalServers count
+                        Checks if the status was not failed
+                            Adds object to timeoutList
+    """
+    # Sets global var to be modified
     global totalServers
     global serverList
+    global averagetimeout
+
+    # Sets a random region from passed region list
     selectedRegion = choice(regions)
+    # Starts timer for average timeout list
     start = time.time()
+    # Determines if the sshkey is identified
     if sshkey:
         curDroplet = Droplet(selectedRegion, getImageID(image), getSSHKeys(sshkey), getSizeID(size), name)
     else:
         curDroplet = Droplet(selectedRegion, getImageID(image), None, getSizeID(size), name)
+    # Runs the objects build function
     curDroplet.build()
+    # Stops the averagetimeout timer
     elapsed = (time.time() - start)
+    # Adds the averagetimeout timer to the list
     averagetimeout.append(elapsed)
+    # Adds the created droplet to the serverList
     serverList.append(curDroplet)
+    # Uses the objects waitTillActive function
     curDroplet.waitTillActive()
+
     if curDroplet.status == "active":
+        # Sets the objects IP using the objects function
         curDroplet.IP = curDroplet.getIP()
         if verbose > 1:
             print curDroplet.DropletID + " is active"
     else:
-        #print curDroplet.DropletID + " " + curDroplet.status
+        # Removes the object from the list if its status is not active
         serverList.remove(curDroplet)
         totalServers -= 1
+        # TODO Add Verbosity error reporting if status is error
         if curDroplet.status != "Failed":
             timeoutList.append(curDroplet)
 
 
-def getAverage(timeList):
-    if len(timeList) > 10:
-        timeList.pop(0)
-    return sum(timeList) / float(len(timeList)) + .5
+def getAverage():
+    """
+    Name:           getAverage
+
+    Description:    Keeps the 10 most recent times in the averagetimeout list and returns the average time + .5 second
+
+    Input:          none
+
+    Actions:        Gets the global averagetimeout list
+                    Removes the oldest time value if the list has more than 10 values
+                    Performs float calc for average and adds a .5 second padding
+                    Returns padded float time
+    """
+    global averagetimeout
+
+    # if longer than 10, will remove the "oldest" value
+    if len(averagetimeout) > 10:
+        averagetimeout.pop(0)
+    # Returns the average time as a float with a .5 sec time padding
+    return sum(averagetimeout) / float(len(averagetimeout)) + .5
 
 
 def ParseCommandLine():
-    parser = argparse.ArgumentParser(description="Start and stop Digital Ocean Droplets.")
+    """
+    Name:           ParseCommandLine
+
+    Description:    Uses argparse Standard library to parse passed CLI arguments
+
+    Input:          none
+
+    Actions:        Creates parser object
+                    adds the following arguments; action - start, stop, status, rebuild = Required)
+                                                  quantity - how many to start or stop = Default: 5
+                                                  hostname - desired hostname = Default: value from config
+                                                  timeout - timeout limit in seconds = Default: 600
+                                                  verbose - verbosity and debug messages
+    """
+    # Creates parser object
+    parser = argparse.ArgumentParser(description="Start, stop, and manage Digital Ocean Droplets.")
+    # Specifies the action, this is required
     parser.add_argument('-a', choices=['start', 'stop', 'status', 'rebuild'],
                         help='Specify the action desired: start, stop, status, rebuild', required=True)
-
-    #Need to require number of droplets if action = start
-
+    # Specifies the number of droplets to start or stop
     parser.add_argument('-q', help='Specify the number of droplets (Default is 5)', type=int, default=5)
+    # Specifies a custom hostname
     parser.add_argument('-n', help='Specify the hostname of the droplets (Default is identified in the config)',
-                        type=str,
-                        default=hostname)
+                        type=str, default=hostname)
+    # Specifies a custom timeout
     parser.add_argument('-t', help='Specify timeout limit (in seconds) (default is 600 seconds)', type=int, default=600)
+    # Specifies the amount of verbosity the program will have, vv will enable debug
     parser.add_argument('--verbose', '-v', help="Add v to have limited verbosity, add another v to give debug messages",
                         action='count')
     return parser.parse_args()
 
 
 def main():
+    """
+    Name:           main
+
+    Description:    Interprets input from user and interacts with droplet objects to manage D.O. Droplets (VPS's)
+
+    Input:          none
+
+    Actions:
+    """
+
     # Creates totalTime var to start timer of full application run
     totalTime = time.time()
 
@@ -521,7 +641,6 @@ def main():
     global keyID
     global totalServers
 
-    theArgs = ParseCommandLine()
 
     # TODO Move Config Parser to separate function
     config = ConfigParser.ConfigParser()
@@ -540,7 +659,10 @@ def main():
     sizeID = config.get('DigitalOceanDropletSettings', 'size')
     hostname = config.get('DigitalOceanDropletSettings', 'hostname')
 
+    # TODO use the defined URL instead of calling it defining it each time (where possible)
     url = 'https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY
+
+    theArgs = ParseCommandLine()
 
     #List of times for api calls to digital ocean. An average of this is used to for timeouts.
     averagetimeout = [4]
@@ -579,7 +701,7 @@ def main():
             except:
                 if verbose > 1:
                     print "Thread died or something..."
-            avgTime = getAverage(averagetimeout)
+            avgTime = getAverage()
             if verbose > 1:
                 print "Waiting average creation time: " + str(avgTime)
             sleep(avgTime)
