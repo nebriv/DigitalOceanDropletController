@@ -386,8 +386,8 @@ def rebuildLists():
             # Sets the ID of the newly created droplet object
             curDroplet.setID(droplet['id'])
             # Appends the newly created object to the global serverList if it is an active droplet
-			if curDroplet.status == "active":
-				serverList.append(curDroplet)
+            if curDroplet.status == "active":
+                serverList.append(curDroplet)
     # Open the activelist.txt file in write binary mode
     with open('activelist.txt', 'wb') as output:
         # Compresses the list and writes it to the output file
