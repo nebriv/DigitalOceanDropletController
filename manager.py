@@ -22,10 +22,11 @@ hostname = ""
 url = ""
 serverList = []
 timeoutList = []
-confirmDestroy = []
+# Not currently using the confirmDestroy List
+# confirmDestroy = []
 verbose = False
 #List of times for api calls to digital ocean. An average of this is used to for timeouts.
-averagetimeout = []
+averagetimeout = [4]
 activetimeout = 0
 keyID = ""
 totalServers = 5
@@ -444,7 +445,7 @@ def getImageID(imageName):
         if image['name'] == imageName:
             imageID = image['id']
     # TODO should return false or raise error if not found or both
-	# TODO should be able to use a standard D.O. image as a default, if not specified in config.
+    # TODO should be able to use a standard D.O. image as a default, if not specified in config.
     return str(imageID)
 
 
@@ -612,6 +613,51 @@ def ParseCommandLine():
     return parser.parse_args()
 
 
+def ConfigFileParser():
+    """
+    Name:           ConfigFileParser
+
+    Description:    Parses the config file and sets global variables
+
+    Input:          config file settings.conf needed in directory
+
+    Actions:        Create parser object
+                    Read the settings.conf file located in the directory
+                    Sets the global variables;
+                        API_ID, API_KEY, managerServerID, imageID, keyID, sizeID, hostname, and url
+    """
+
+    global API_ID
+    global API_KEY
+    global managerServerID
+    global imageID
+    global keyID
+    global sizeID
+    global hostname
+    global url
+
+    # Creates a config file object
+    config = ConfigParser.ConfigParser()
+    # Read the settings.conf file into the config object
+    config.read('settings.conf')
+
+    # Uses the config object to read and set the global vars
+    API_ID = config.get('DigitalOceanAPI', 'API_ID')
+    API_KEY = config.get('DigitalOceanAPI', 'API_KEY')
+    managerServerID = config.get('DigitalOceanSettings', 'managerServerID')
+    imageID = config.get('DigitalOceanDropletSettings', 'image')
+    # Checks if the SSHKey exists else sets the key to false
+    try:
+        keyID = config.get('DigitalOceanDropletSettings', 'key')
+    except ValueError:
+        keyID = None
+    sizeID = config.get('DigitalOceanDropletSettings', 'size')
+    hostname = config.get('DigitalOceanDropletSettings', 'hostname')
+
+    # TODO use the defined URL instead of calling it defining it each time (where possible)
+    url = 'https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY
+
+
 def main():
     """
     Name:           main
@@ -626,54 +672,34 @@ def main():
     # Creates totalTime var to start timer of full application run
     totalTime = time.time()
 
-    global API_ID
-    global API_KEY
-    global managerServerID
-    global imageID
-    global sizeID
+    # global API_ID
+    # global API_KEY
+    # global managerServerID
+    # global imageID
+    # global sizeID
     global hostname
-    global url
+    # global url
     global serverList
     global timeoutList
-    global confirmDestroy
+    # global confirmDestroy
     global verbose
-    global averagetimeout
+    # global averagetimeout
     global activetimeout
-    global keyID
+    # global keyID
     global totalServers
 
 
-    # TODO Move Config Parser to separate function
-    config = ConfigParser.ConfigParser()
-    config.read('settings.conf')
-
-    API_ID = config.get('DigitalOceanAPI', 'API_ID')
-    API_KEY = config.get('DigitalOceanAPI', 'API_KEY')
-
-    managerServerID = config.get('DigitalOceanSettings', 'managerServerID')
-
-    imageID = config.get('DigitalOceanDropletSettings', 'image')
-    try:
-        keyID = config.get('DigitalOceanDropletSettings', 'key')
-    except ValueError:
-        keyID = None
-    sizeID = config.get('DigitalOceanDropletSettings', 'size')
-    hostname = config.get('DigitalOceanDropletSettings', 'hostname')
-
-    # TODO use the defined URL instead of calling it defining it each time (where possible)
-    url = 'https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY
-
-    
+    ConfigFileParser()
 
     #List of times for api calls to digital ocean. An average of this is used to for timeouts.
-    averagetimeout = [4]
+    # averagetimeout = [4]
 
-    serverList = []
-    timeoutList = []
-    confirmDestroy = []
+    # serverList = []
+    # timeoutList = []
+    # confirmDestroy = []
 
-	theArgs = ParseCommandLine()
-	
+    theArgs = ParseCommandLine()
+
     args = vars(theArgs)
     action = args['a']
     totalServers = args['q']
@@ -879,8 +905,8 @@ def main():
     elif action == "rebuild":
         rebuildLists()
 
-	#Timer should stop regardless of verbosity.
-	totalTime = (time.time() - totalTime)
+    #Timer should stop regardless of verbosity.
+    totalTime = (time.time() - totalTime)
     # If verbose, print totalTime var
     if verbose:
         print "Total time to create: " + str(totalTime)
