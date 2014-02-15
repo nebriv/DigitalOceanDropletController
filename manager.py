@@ -22,9 +22,8 @@ hostname = ""
 url = ""
 serverList = []
 timeoutList = []
-# Not currently using the confirmDestroy List
-# confirmDestroy = []
 verbose = False
+
 #List of times for api calls to digital ocean. An average of this is used to for timeouts.
 averagetimeout = [4]
 activetimeout = 0
@@ -524,6 +523,7 @@ def createDroplet(regions, image, size, sshkey, name):
     global serverList
     global averagetimeout
 
+    # TODO Add functionality to not rand
     # Sets a random region from passed region list
     selectedRegion = choice(regions)
     # Starts timer for average timeout list
@@ -672,31 +672,15 @@ def main():
     # Creates totalTime var to start timer of full application run
     totalTime = time.time()
 
-    # global API_ID
-    # global API_KEY
-    # global managerServerID
-    # global imageID
-    # global sizeID
     global hostname
-    # global url
     global serverList
     global timeoutList
-    # global confirmDestroy
     global verbose
-    # global averagetimeout
     global activetimeout
-    # global keyID
     global totalServers
 
 
     ConfigFileParser()
-
-    #List of times for api calls to digital ocean. An average of this is used to for timeouts.
-    # averagetimeout = [4]
-
-    # serverList = []
-    # timeoutList = []
-    # confirmDestroy = []
 
     theArgs = ParseCommandLine()
 
