@@ -327,7 +327,7 @@ def countDroplets():
                     Returns a string of the count
     """
     # Uses the D.O API to get all droplets on the account
-    r = requests.get('https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY)
+    r = requests.get(url)
     result = r.json()
     # Starts with 0 before counting droplets
     count = 0
@@ -366,7 +366,7 @@ def rebuildLists():
     global serverList
 
     # Uses D.O. API to get all droplets on the account
-    r = requests.get('https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY)
+    r = requests.get(url)
     result = r.json()
     # Sets global var serverList to clear the list
     serverList = []
@@ -654,7 +654,6 @@ def ConfigFileParser():
     sizeID = config.get('DigitalOceanDropletSettings', 'size')
     hostname = config.get('DigitalOceanDropletSettings', 'hostname')
 
-    # TODO use the defined URL instead of calling it defining it each time (where possible)
     url = 'https://api.digitalocean.com/droplets/?client_id=' + API_ID + '&api_key=' + API_KEY
 
 
@@ -865,6 +864,9 @@ def ActionStatus():
     Actions:
     """
     digiOceanCount = countDroplets()
+
+    global serverList
+
     try:
         print "There are " + str(digiOceanCount) + " droplets currently running"
         with open('activelist.txt', 'rb') as input:
@@ -935,7 +937,7 @@ def main():
     totalTime = (time.time() - totalTime)
     # If verbose, print totalTime var
     if verbose:
-        print "Total time to perform " + action + ": " + str(totalTime)
+        print "Total time to perform " + action + " action: " + str(totalTime)
 
 if __name__ == '__main__':
     main()
